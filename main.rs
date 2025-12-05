@@ -72,7 +72,10 @@ impl Evaluator<MyMCTS> for MyEvaluator {
     fn evaluate_new_state(&self, state: &Quorridor, moves: &Vec<Move>,
         _: Option<SearchHandle<MyMCTS>>)
         -> (Vec<()>, i64) {
-        (vec![(); moves.len()], state.player_pieces[state.current_player()].y)
+        if state.player_pieces[0].y == 8 && state.player_pieces[1].y != 0 {
+            return (vec![(); moves.len()], 1);
+        }
+        return (vec![(); moves.len()], 1);
     }
     fn interpret_evaluation_for_player(&self, evaln: &i64, _player: &usize) -> i64 {
         *evaln
