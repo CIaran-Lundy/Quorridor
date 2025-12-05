@@ -7,8 +7,8 @@ mod quorridor;
 use quorridor::{Quorridor, 
                 Piece,
                 Wall,
-                move_player_forward,
-                move_player_backward,
+                move_player_up,
+                move_player_down,
                 move_player_left,
                 move_player_right,
                 place_wall
@@ -16,7 +16,7 @@ use quorridor::{Quorridor,
  
 #[derive(Clone, Debug, PartialEq)]
 pub enum Move {
-    Forward, Backward, Left, Right, PlaceWall
+    Up, Down, Left, Right, PlaceWall
 }
  
 impl GameState for Quorridor {
@@ -34,8 +34,8 @@ impl GameState for Quorridor {
             vec![]
         } else {
             vec![
-                Move::Forward, 
-                Move::Backward, 
+                Move::Up, 
+                Move::Down, 
                 Move::Left, 
                 Move::Right,
                 Move::PlaceWall
@@ -47,8 +47,8 @@ impl GameState for Quorridor {
         let it = (0..8).combinations(2);
         let combinations_vec: Vec<Vec<i32>> = it.collect::<Vec<_>>();
         match *mov {
-            Move::Forward => move_player_forward(self),
-            Move::Backward => move_player_backward(self),
+            Move::Up => move_player_up(self),
+            Move::Down => move_player_down(self),
             Move::Left => move_player_left(self),
             Move::Right => move_player_right(self),
             Move::PlaceWall => place_wall(self, combinations_vec[0][0] as i64, combinations_vec[0][1] as i64),
@@ -75,7 +75,8 @@ impl Evaluator<MyMCTS> for MyEvaluator {
         if state.player_pieces[0].y == 8 && state.player_pieces[1].y != 0 {
             return (vec![(); moves.len()], 1);
         }
-        return (vec![(); moves.len()], 1);
+        println!("Evaluating state: {:?}", state.player_pieces);
+        return (vec![(); moves.len()], 0);
     }
     fn interpret_evaluation_for_player(&self, evaln: &i64, _player: &usize) -> i64 {
         *evaln
@@ -108,7 +109,7 @@ fn main() {
                         walls_remaining: [9, 9]};
     let mut mcts = MCTSManager::new(game, MyMCTS, MyEvaluator, UCTPolicy::new(0.5),
         ApproxTable::new(1024));
-    mcts.playout_n_parallel(10, 4); // 10000 playouts, 4 search threads
+    mcts.playout_n_parallel(10000, 4); // 10000 playouts, 4 search threads
     mcts.tree().debug_moves();
     assert_eq!(mcts.best_move().unwrap(), Move::Right);
     //assert_eq!(mcts.principal_variation(50),

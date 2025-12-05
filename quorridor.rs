@@ -69,7 +69,7 @@ pub fn move_player_right(game: &mut Quorridor) {
     }
 }
 
-pub fn move_player_forward(game: &mut Quorridor) {
+pub fn move_player_up(game: &mut Quorridor) {
     let idx = game.active_player;
     let current_x = game.player_pieces[idx].x;
     let current_y = game.player_pieces[idx].y;
@@ -81,7 +81,7 @@ pub fn move_player_forward(game: &mut Quorridor) {
     }
 }
 
-pub fn move_player_backward(game: &mut Quorridor) {
+pub fn move_player_down(game: &mut Quorridor) {
     let idx = game.active_player;
     let current_x = game.player_pieces[idx].x;
     let current_y = game.player_pieces[idx].y;
