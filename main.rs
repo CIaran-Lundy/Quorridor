@@ -14,12 +14,6 @@ use quorridor::{Quorridor,
                 place_wall
                };
  
-// A really simple game. There's one player and one number. In each move the player can
-// increase or decrease the number. The player's score is the number.
-// The game ends when the number reaches 100.
-// 
-// The best strategy is to increase the number at every step.
- 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Move {
     Forward, Backward, Left, Right, PlaceWall
@@ -34,8 +28,9 @@ impl GameState for Quorridor {
         self.active_player
     }
     fn available_moves(&self) -> Vec<Move> {
-        let progress_on_board = self.player_pieces[self.current_player()].y;
-        if progress_on_board == 100 {
+        let player_0_progress_on_board = self.player_pieces[0].y;
+        let player_1_progress_on_board = 8 - self.player_pieces[1].y;
+        if player_0_progress_on_board == 8 || player_1_progress_on_board == 8 {
             vec![]
         } else {
             vec![
@@ -47,7 +42,7 @@ impl GameState for Quorridor {
                 ]
         }
     }
-    
+
     fn make_move(&mut self, mov: &Self::Move) {
         let it = (0..8).combinations(2);
         let combinations_vec: Vec<Vec<i32>> = it.collect::<Vec<_>>();
@@ -104,13 +99,13 @@ impl MCTS for MyMCTS {
 }
  
 fn main() {
-    let game = Quorridor{player_pieces: [Piece{x: 0, y: 0}, Piece{x: 0, y: 0}],
+    let game = Quorridor{player_pieces: [Piece{x: 0, y: 0}, Piece{x: 8, y: 8}],
                         active_player: 0,
                         walls: [Wall{x: 99, y: 99}; 18],
                         walls_remaining: [9, 9]};
     let mut mcts = MCTSManager::new(game, MyMCTS, MyEvaluator, UCTPolicy::new(0.5),
         ApproxTable::new(1024));
-    mcts.playout_n_parallel(10000, 4); // 10000 playouts, 4 search threads
+    mcts.playout_n_parallel(10, 4); // 10000 playouts, 4 search threads
     mcts.tree().debug_moves();
     assert_eq!(mcts.best_move().unwrap(), Move::Right);
     //assert_eq!(mcts.principal_variation(50),
