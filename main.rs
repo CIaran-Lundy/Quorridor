@@ -7,6 +7,7 @@ use quorridor::{Quorridor,
                 Piece,
                 Wall,
                 Orientation,
+                WallPlacementResult,
                 move_player_up,
                 move_player_down,
                 move_player_left,
@@ -60,33 +61,43 @@ impl GameState for Quorridor {
                 let opponent_y = self.player_pieces[opponent].y;
                 
                 // Consider walls within range of either player
-                for x in 0..8 {  // 0..8 since horizontal walls need x+1 to be valid
-                    for y in 0..8 {  // 0..8 since vertical walls need y+1 to be valid
+                for x in 0..8 {  // Horizontal walls span x and x+1, so x must be 0-7
+                    for y in 0..9 {  // y can be 0-8 (9 positions for horizontal walls)
                         // Within 4 squares of current player or opponent
                         let near_player = (x - player_x).abs() <= 4 && (y - player_y).abs() <= 4;
                         let near_opponent = (x - opponent_x).abs() <= 4 && (y - opponent_y).abs() <= 4;
                         
                         if near_player || near_opponent {
-                            // Try both orientations
+                            // Try horizontal wall
                             let h_wall = Wall { x, y, orientation: Orientation::Horizontal };
-                            let v_wall = Wall { x, y, orientation: Orientation::Vertical };
-                            
-                            // Check if horizontal wall would conflict
                             let h_conflict = self.walls.iter().any(|w| {
                                 if w.x == 99 { return false; }
-                                w.positions().iter().any(|pos| h_wall.positions().contains(pos))
+                                // Check for crossing or overlap
+                                if h_wall.crosses(w) { return true; }
+                                if w.orientation == Orientation::Horizontal {
+                                    return w.positions().iter().any(|pos| h_wall.positions().contains(pos));
+                                }
+                                false
                             });
                             if !h_conflict {
                                 moves.push(Move::PlaceWall(x, y, Orientation::Horizontal));
                             }
                             
-                            // Check if vertical wall would conflict
-                            let v_conflict = self.walls.iter().any(|w| {
-                                if w.x == 99 { return false; }
-                                w.positions().iter().any(|pos| v_wall.positions().contains(pos))
-                            });
-                            if !v_conflict {
-                                moves.push(Move::PlaceWall(x, y, Orientation::Vertical));
+                            // Try vertical wall (only if y+1 is valid)
+                            if y < 8 {
+                                let v_wall = Wall { x, y, orientation: Orientation::Vertical };
+                                let v_conflict = self.walls.iter().any(|w| {
+                                    if w.x == 99 { return false; }
+                                    // Check for crossing or overlap
+                                    if v_wall.crosses(w) { return true; }
+                                    if w.orientation == Orientation::Vertical {
+                                        return w.positions().iter().any(|pos| v_wall.positions().contains(pos));
+                                    }
+                                    false
+                                });
+                                if !v_conflict {
+                                    moves.push(Move::PlaceWall(x, y, Orientation::Vertical));
+                                }
                             }
                         }
                     }
@@ -97,17 +108,20 @@ impl GameState for Quorridor {
     }
 
     fn make_move(&mut self, mov: &Self::Move) {
-        match mov {
-            Move::Up => move_player_up(self),
-            Move::Down => move_player_down(self),
-            Move::Left => move_player_left(self),
-            Move::Right => move_player_right(self),
+        let success = match mov {
+            Move::Up => { move_player_up(self); true }
+            Move::Down => { move_player_down(self); true }
+            Move::Left => { move_player_left(self); true }
+            Move::Right => { move_player_right(self); true }
             Move::PlaceWall(x, y, orientation) => {
-                place_wall(self, *x, *y, *orientation);
+                place_wall(self, *x, *y, *orientation) == WallPlacementResult::Success
             }
+        };
+        
+        // Only switch to the other player if the move succeeded
+        if success {
+            self.active_player = 1 - self.active_player;
         }
-        // Switch to the other player after a move
-        self.active_player = 1 - self.active_player;
     }
 }
  
@@ -268,7 +282,7 @@ fn get_ai_move(game: &Quorridor) -> Move {
         UCTPolicy::new(1.414),  // Standard UCT exploration constant
         ApproxTable::new(8192)
     );
-    mcts.playout_n_parallel(50000, 4);
+    mcts.playout_n_parallel(5, 4);
     
     match mcts.best_move() {
         Some(mov) => {
@@ -342,7 +356,69 @@ fn get_human_move(game: &Quorridor) -> Move {
             if available.contains(&mov) {
                 return mov;
             } else {
-                println!("Invalid move! Try again.");
+                // Provide detailed feedback on why the move is invalid
+                match &mov {
+                    Move::PlaceWall(x, y, orientation) => {
+                        let wall = Wall { x: *x, y: *y, orientation: *orientation };
+                        let positions = wall.positions();
+                        
+                        // Check if out of bounds
+                        if positions.iter().any(|(wx, wy)| *wx < 0 || *wx >= 9 || *wy < 0 || *wy >= 9) {
+                            println!("Invalid move! Wall at ({}, {}) {:?} would be out of bounds.", x, y, orientation);
+                            continue;
+                        }
+                        
+                        // Check if crosses with existing wall (different orientation intersecting)
+                        let crosses = game.walls.iter().any(|w| {
+                            if w.x == 99 { return false; }
+                            wall.crosses(w)
+                        });
+                        
+                        if crosses {
+                            println!("Invalid move! Wall at ({}, {}) {:?} would cross through an existing wall.", x, y, orientation);
+                            continue;
+                        }
+                        
+                        // Check if overlaps with existing wall (same orientation)
+                        let overlaps = game.walls.iter().any(|w| {
+                            if w.x == 99 { return false; }
+                            if w.orientation != *orientation { return false; }
+                            w.positions().iter().any(|pos| positions.contains(pos))
+                        });
+                        
+                        if overlaps {
+                            println!("Invalid move! Wall at ({}, {}) {:?} overlaps with an existing wall.", x, y, orientation);
+                            continue;
+                        }
+                        
+                        // Check if too far from players
+                        let player_x = game.player_pieces[game.active_player].x;
+                        let player_y = game.player_pieces[game.active_player].y;
+                        let opponent = 1 - game.active_player;
+                        let opponent_x = game.player_pieces[opponent].x;
+                        let opponent_y = game.player_pieces[opponent].y;
+                        
+                        let near_player = (*x - player_x).abs() <= 4 && (*y - player_y).abs() <= 4;
+                        let near_opponent = (*x - opponent_x).abs() <= 4 && (*y - opponent_y).abs() <= 4;
+                        
+                        if !near_player && !near_opponent {
+                            println!("Invalid move! Wall at ({}, {}) is too far from both players (must be within 4 squares).", x, y);
+                            continue;
+                        }
+                        
+                        // Check if no walls remaining
+                        if game.walls_remaining[game.active_player] == 0 {
+                            println!("Invalid move! You have no walls remaining.");
+                            continue;
+                        }
+                        
+                        // Must be blocking a path
+                        println!("Invalid move! Wall at ({}, {}) {:?} would block a player from reaching their goal.", x, y, orientation);
+                    }
+                    Move::Up | Move::Down | Move::Left | Move::Right => {
+                        println!("Invalid move! That direction is blocked or out of bounds.");
+                    }
+                }
             }
         } else {
             println!("Invalid input! Try again.");
