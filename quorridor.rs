@@ -53,31 +53,13 @@ impl Wall {
             Orientation::Vertical => [(self.x, self.y), (self.x, self.y + 1)],
         }
     }
-    
-    pub fn crosses(&self, other: &Wall) -> bool {
-        if self.orientation == other.orientation {
-            return false;
-        }
-        
-        match (self.orientation, other.orientation) {
-            (Orientation::Horizontal, Orientation::Vertical) => {
-                let vx = other.x;
-                let vy = other.y;
-                vx >= self.x && vx <= self.x + 1 && self.y >= vy && self.y <= vy + 1
-            }
-            (Orientation::Vertical, Orientation::Horizontal) => {
-                other.crosses(self)
-            }
-            _ => false,
-        }
-    }
 }
 
 impl Coordinates for Wall {
     fn coords(&self) -> (i64, i64) { (self.x, self.y) }
 }
 
-pub fn move_player(game: &mut Quorridor, x, y) {
+pub fn move_player(game: &mut Quorridor, x: i64, y: i64) {
     let idx = game.active_player;
     game.player_pieces[idx].x = game.player_pieces[idx].x + x;
     game.player_pieces[idx].y = game.player_pieces[idx].y + y;
@@ -134,59 +116,20 @@ pub fn shortest_path_to_goal(game: &Quorridor, player_idx: usize) -> Option<usiz
     None
 }
 
-pub fn both_players_have_path(game: &Quorridor) -> bool {
-    shortest_path_to_goal(game, 0).is_some() && shortest_path_to_goal(game, 1).is_some()
-}
-
 pub fn place_wall(game: &mut Quorridor, x: i64, y: i64, orientation: Orientation) -> WallPlacementResult {
     let idx = game.active_player;
     
-    if game.walls_remaining[idx] == 0 {
-        return WallPlacementResult::NoWallsRemaining;
-    }
-    
     let new_wall = Wall { x, y, orientation };
-    
-    let crosses_existing = game.walls.iter().any(|w| {
-        if w.x == 99 { return false; }
-        new_wall.crosses(w)
-    });
-    
-    if crosses_existing {
-        return WallPlacementResult::Crosses;
-    }
-    
-    let overlaps = game.walls.iter().any(|w| {
-        if w.x == 99 { return false; }
-        
-        if w.orientation == new_wall.orientation {
-            let new_positions = new_wall.positions();
-            return w.positions().iter().any(|pos| new_positions.contains(pos));
-        }
-        
-        false
-    });
-    
-    if overlaps {
-        return WallPlacementResult::Overlaps;
-    }
-    
+    let walls_placed = 9 - game.walls_remaining[idx];
     let wall_index = if idx == 0 {
-        9 - game.walls_remaining[idx]
+        walls_placed
     } else {
-        9 + (9 - game.walls_remaining[idx])
+        9 + walls_placed
     };
     
-    let old_wall = game.walls[wall_index];
     game.walls[wall_index] = new_wall;
-    
-    if both_players_have_path(game) {
-        game.walls_remaining[idx] -= 1;
-        return WallPlacementResult::Success;
-    } else {
-        game.walls[wall_index] = old_wall;
-        return WallPlacementResult::BlocksPath;
-    }
+    game.walls_remaining[idx] -= 1;
+    WallPlacementResult::Success
 }
 
 impl Quorridor {
@@ -199,24 +142,16 @@ impl Quorridor {
             
             match wall.orientation {
                 Orientation::Horizontal => {
-                    // Horizontal wall at (x, y) spans (x, y) to (x+1, y)
-                    // It blocks vertical movement between y-1 and y
-                    // Check if we're moving vertically across this wall
                     if (current_y == wall.y - 1 && target_y == wall.y) || 
                        (current_y == wall.y && target_y == wall.y - 1) {
-                        // Check if our x position crosses this wall segment
                         if current_x >= wall.x && current_x <= wall.x + 1 {
                             return true;
                         }
                     }
                 }
                 Orientation::Vertical => {
-                    // Vertical wall at (x, y) spans (x, y) to (x, y+1)
-                    // It blocks horizontal movement between x-1 and x
-                    // Check if we're moving horizontally across this wall
                     if (current_x == wall.x - 1 && target_x == wall.x) || 
                        (current_x == wall.x && target_x == wall.x - 1) {
-                        // Check if our y position crosses this wall segment
                         if current_y >= wall.y && current_y <= wall.y + 1 {
                             return true;
                         }
@@ -230,6 +165,62 @@ impl Quorridor {
     pub fn player_collision(&self, player_idx: usize, x: i64, y: i64) -> bool {
         let opponent_idx = 1 - player_idx;
         self.player_pieces[opponent_idx].x == x && self.player_pieces[opponent_idx].y == y
+    }
+    
+    pub fn wall_crosses(&self, x: i64, y: i64, orientation: Orientation) -> bool {
+        self.walls.iter().any(|other| {
+            if other.x == 99 { return false; }
+            if orientation == other.orientation {
+                return false;
+            }
+            
+            match (orientation, other.orientation) {
+                (Orientation::Horizontal, Orientation::Vertical) => {
+                    other.x >= x && other.x <= x + 1 && y >= other.y && y <= other.y + 1
+                }
+                (Orientation::Vertical, Orientation::Horizontal) => {
+                    other.x >= x && other.x <= x + 1 && other.y >= y && other.y <= y + 1
+                }
+                _ => false,
+            }
+        })
+    }
+    
+    pub fn wall_overlaps(&self, x: i64, y: i64, orientation: Orientation) -> bool {
+        let new_positions = match orientation {
+            Orientation::Horizontal => [(x, y), (x + 1, y)],
+            Orientation::Vertical => [(x, y), (x, y + 1)],
+        };
+        
+        self.walls.iter().any(|other| {
+            if other.x == 99 { return false; }
+            if other.orientation != orientation { return false; }
+            
+            other.positions().iter().any(|pos| new_positions.contains(pos))
+        })
+    }
+    
+    pub fn both_players_have_path(&self) -> bool {
+        shortest_path_to_goal(self, 0).is_some() && shortest_path_to_goal(self, 1).is_some()
+    }
+    
+    pub fn wall_blocks_path(&mut self, x: i64, y: i64, orientation: Orientation) -> bool {
+        let idx = self.active_player;
+        let walls_placed = 9 - self.walls_remaining[idx];
+        let wall_index = if idx == 0 {
+            walls_placed
+        } else {
+            9 + walls_placed
+        };
+        
+        let new_wall = Wall { x, y, orientation };
+        let old_wall = self.walls[wall_index];
+        self.walls[wall_index] = new_wall;
+        
+        let blocks = !self.both_players_have_path();
+        
+        self.walls[wall_index] = old_wall;
+        blocks
     }
 }
 
