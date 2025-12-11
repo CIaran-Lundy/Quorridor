@@ -277,93 +277,17 @@ fn get_human_move(game: &Quorridor) -> Move {
         
         if let Some(mov) = mov {
             // Validate move is legal
-            let available = game.available_moves();
+            
             if available.contains(&mov) {
                 return mov;
             } else {
-                // Provide detailed feedback on why the move is invalid
-                match mov {
-                    Move::PlaceWall(x, y, orientation) => {
-                        let wall = Wall { x, y, orientation };
-                        let positions = wall.positions();
-                        
-                        // Check if out of bounds
-                        if positions.iter().any(|(wx, wy)| *wx < 0 || *wx >= 9 || *wy < 0 || *wy >= 9) {
-                            println!("Invalid move! Wall at ({}, {}) {:?} would be out of bounds.", x, y, orientation);
-                            continue;
-                        }
-                        
-                        // Check if crosses with existing wall (different orientation intersecting)
-                        if game.wall_crosses(x, y, orientation) {
-                            println!("Invalid move! Wall at ({}, {}) {:?} would cross through an existing wall.", x, y, orientation);
-                            continue;
-                        }
-                        
-                        // Check if overlaps with existing wall (same orientation)
-                        if game.wall_overlaps(x, y, orientation) {
-                            println!("Invalid move! Wall at ({}, {}) {:?} overlaps with an existing wall.", x, y, orientation);
-                            continue;
-                        }
-                        
-                        // Check if too far from players
-                        let player_x = game.player_pieces[game.active_player].x;
-                        let player_y = game.player_pieces[game.active_player].y;
-                        let opponent = 1 - game.active_player;
-                        let opponent_x = game.player_pieces[opponent].x;
-                        let opponent_y = game.player_pieces[opponent].y;
-                        
-                        let near_player = (x - player_x).abs() <= 4 && (y - player_y).abs() <= 4;
-                        let near_opponent = (x - opponent_x).abs() <= 4 && (y - opponent_y).abs() <= 4;
-                        
-                        if !near_player && !near_opponent {
-                            println!("Invalid move! Wall at ({}, {}) is too far from both players (must be within 4 squares).", x, y);
-                            continue;
-                        }
-                        
-                        // Check if no walls remaining
-                        if game.walls_remaining[game.active_player] == 0 {
-                            println!("Invalid move! You have no walls remaining.");
-                            continue;
-                        }
-                        
-                        // Must be blocking a path
-                        println!("Invalid move! Wall at ({}, {}) {:?} would block a player from reaching their goal.", x, y, orientation);
-                    }
-                    Move::Up | Move::Down | Move::Left | Move::Right => {
-                        // Determine the target position based on the move
-                        let current_x = game.player_pieces[game.active_player].x;
-                        let current_y = game.player_pieces[game.active_player].y;
-                        let (target_x, target_y) = match &mov {
-                            Move::Up => (current_x, current_y + 1),
-                            Move::Down => (current_x, current_y - 1),
-                            Move::Left => (current_x - 1, current_y),
-                            Move::Right => (current_x + 1, current_y),
-                            _ => (current_x, current_y),
-                        };
-                        
-                        // Check specific reasons for invalid move
-                        if target_x < 0 || target_x >= 9 || target_y < 0 || target_y >= 9 {
-                            println!("Invalid move! Can't move out of bounds.");
-                            continue;
-                        }
-                        
-                        // Check for player collision
-                        let opponent_idx = 1 - game.active_player;
-                        if game.player_pieces[opponent_idx].x == target_x && game.player_pieces[opponent_idx].y == target_y {
-                            println!("Invalid move! Can't move to a square occupied by the opponent.");
-                            continue;
-                        }
-                        
-                        // Must be a wall blocking
-                        println!("Invalid move! A wall is blocking that direction.");
-                    }
-                }
+                println!("Invalid input! Try again.");
             }
-        } else {
-            println!("Invalid input! Try again.");
         }
     }
 }
+
+
 
 fn main() {
     let mut game = Quorridor {
