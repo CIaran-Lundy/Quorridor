@@ -46,10 +46,10 @@ impl GameState for Quorridor {
 
     fn make_move(&mut self, mov: &Self::Move) {
         let success = match mov {
-            Move::Up => { move_player(self, 0, 1); true }
-            Move::Down => { move_player(self, 0, -1); true }
-            Move::Left => { move_player(self, -1, 0); true }
-            Move::Right => { move_player(self, 1, 0); true }
+            Move::Up => { move_player(self, 0, 2); true }      // Move by 2 in 18x18 grid
+            Move::Down => { move_player(self, 0, -2); true }    // Move by 2 in 18x18 grid
+            Move::Left => { move_player(self, -2, 0); true }    // Move by 2 in 18x18 grid
+            Move::Right => { move_player(self, 2, 0); true }    // Move by 2 in 18x18 grid
             Move::PlaceWall(x, y, orientation) => {
                 place_wall(self, *x, *y, *orientation) == WallPlacementResult::Success
             }

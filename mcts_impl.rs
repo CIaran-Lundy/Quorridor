@@ -14,10 +14,12 @@ impl TranspositionHash for Quorridor {
         hash = hash.wrapping_mul(31).wrapping_add(((self.player_pieces[0].x as u64) << 32) | (self.player_pieces[0].y as u64));
         hash = hash.wrapping_mul(31).wrapping_add(((self.player_pieces[1].x as u64) << 32) | (self.player_pieces[1].y as u64));
         
-        // Hash all walls
-        for wall in &self.walls {
-            if wall.x != 99 && wall.y != 99 {  // Skip uninitialized walls
-                hash = hash.wrapping_mul(31).wrapping_add((wall.x as u64) << 4 | (wall.y as u64));
+        // Hash the grid (only even positions where walls can be)
+        for y in (0..18).step_by(2) {
+            for x in (0..18).step_by(2) {
+                if self.grid[y][x] {
+                    hash = hash.wrapping_mul(31).wrapping_add((x as u64) << 8 | (y as u64));
+                }
             }
         }
 
@@ -33,11 +35,11 @@ impl Evaluator<MyMCTS> for MyEvaluator {
     fn evaluate_new_state(&self, state: &Quorridor, moves: &Vec<Move>,
         _: Option<SearchHandle<MyMCTS>>)
         -> (Vec<()>, i64) {
-        // Check for terminal states
-        if state.player_pieces[0].y >= 8 {
+        // Check for terminal states (18x18 grid: goals at y=1 and y=17)
+        if state.player_pieces[0].y >= 17 {
             return (vec![(); moves.len()], 100000);  // Player 0 wins
         }
-        if state.player_pieces[1].y <= 0 {
+        if state.player_pieces[1].y <= 1 {
             return (vec![(); moves.len()], -100000);  // Player 1 wins
         }
         
