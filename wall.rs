@@ -27,39 +27,21 @@ pub struct Wall {
 }
 
 impl Wall {
-    pub fn positions(&self) -> [(i64, i64); 2] {
+    pub fn positions(&self) -> [(i64, i64); 3] {
         match self.orientation {
-            Orientation::Horizontal => [(self.x, self.y), (self.x + 1, self.y)],
-            Orientation::Vertical => [(self.x, self.y), (self.x, self.y + 1)],
+            Orientation::Horizontal => [(self.x + 1, self.y), (self.x + 2, self.y), (self.x + 3, self.y)],
+            Orientation::Vertical => [(self.x, self.y + 1), (self.x, self.y + 2), (self.x, self.y + 3)],
         }
     }
 }
 
 pub fn place_wall(game: &mut Quorridor, x: i64, y: i64, orientation: Orientation) -> WallPlacementResult {
     let idx = game.active_player;
-    
-    if game.walls_remaining[idx] == 0 {
-        return WallPlacementResult::NoWallsRemaining;
-    }
-    
-    // In 18x18 grid, walls occupy 3 consecutive cells
-    // Horizontal wall at (x,y) occupies (x,y), (x+1,y), (x+2,y)
-    // Vertical wall at (x,y) occupies (x,y), (x,y+1), (x,y+2)
-    let positions: Vec<(usize, usize)> = match orientation {
-        Orientation::Horizontal => vec![(x as usize, y as usize), ((x+2) as usize, y as usize), ((x+4) as usize, y as usize)],
-        Orientation::Vertical => vec![(x as usize, y as usize), (x as usize, (y+2) as usize), (x as usize, (y+4) as usize)],
-    };
-    
-    // Check if any position is already occupied
-    for (px, py) in &positions {
-        if game.grid[*py][*px] {
-            return WallPlacementResult::Overlaps;
-        }
-    }
-    
+
+    let wall = Wall { x, y, orientation };
     // Place the wall
-    for (px, py) in positions {
-        game.grid[py][px] = true;
+    for (px, py) in wall.positions() {
+        game.grid[py as usize][px as usize] = true;
     }
     
     game.walls_remaining[idx] -= 1;

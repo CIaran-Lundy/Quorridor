@@ -63,75 +63,89 @@ impl GameState for Quorridor {
 
 
 fn display_board(game: &Quorridor) {
-    // Build board representation
-    let mut player_grid = [[' '; 9]; 9];  // 9x9 grid for players
-    let mut h_wall_grid = [[false; 9]; 9];  // Horizontal walls between rows
-    let mut v_wall_grid = [[false; 9]; 9];  // Vertical walls between columns
-    
-    // Place players on the grid
-    player_grid[game.player_pieces[0].y as usize][game.player_pieces[0].x as usize] = 'A';
-    player_grid[game.player_pieces[1].y as usize][game.player_pieces[1].x as usize] = 'H';
-    
-    // Place walls on the grid
-    for wall in &game.walls {
-        if wall.x != 99 && wall.y != 99 {
-            match wall.orientation {
-                Orientation::Horizontal => {
-                    // Horizontal wall blocks movement up/down between rows
-                    if wall.x >= 0 && wall.x < 8 && wall.y >= 0 && wall.y < 9 {
-                        h_wall_grid[wall.y as usize][wall.x as usize] = true;
-                        h_wall_grid[wall.y as usize][(wall.x + 1) as usize] = true;
-                    }
-                }
-                Orientation::Vertical => {
-                    // Vertical wall blocks movement left/right between columns
-                    if wall.x >= 0 && wall.x < 9 && wall.y >= 0 && wall.y < 8 {
-                        v_wall_grid[wall.y as usize][wall.x as usize] = true;
-                        v_wall_grid[(wall.y + 1) as usize][wall.x as usize] = true;
-                    }
-                }
-            }
-        }
+    for line in &game.grid {
+        println!("{:?}", line);
     }
-    
-    // Display the board
-    println!("\n   0   1   2   3   4   5   6   7   8   9 (wall X coords)");
-    println!(" 9 +---+---+---+---+---+---+---+---+---+");
-    
-    for y in (0..9).rev() {
-        // Print player row with vertical walls
-        print!("   ");
-        for x in 0..9 {
-            if v_wall_grid[y][x] {
-                print!("X");
-            } else {
-                print!("|");
-            }
-            print!(" {} ", player_grid[y][x]);
-        }
-        println!("|");
-        
-        // Print horizontal wall row
-        if y > 0 {
-            print!("{:2} +", y);
-            for x in 0..9 {
-                if h_wall_grid[y - 1][x] {
-                    print!("XXX+");
-                } else {
-                    print!("---+");
-                }
-            }
-            println!();
-        }
-    }
-    println!(" 0 +---+---+---+---+---+---+---+---+---+");
-    
-    println!("\nPlayer 0 (A): ({}, {}) - Walls: {}", 
-             game.player_pieces[0].x, game.player_pieces[0].y, game.walls_remaining[0]);
-    println!("Player 1 (H): ({}, {}) - Walls: {}", 
-             game.player_pieces[1].x, game.player_pieces[1].y, game.walls_remaining[1]);
-    println!("Current player: {}", game.active_player);
-    println!("\nNote: Walls block movement. Place walls at coordinates between player spaces.");
+
+    //// Build board representation - convert 18x18 back to 9x9 for display
+    //let mut player_grid = [[' '; 9]; 9];  // 9x9 grid for players
+    //let mut h_wall_grid = [[false; 9]; 9];  // Horizontal walls between rows
+    //let mut v_wall_grid = [[false; 9]; 9];  // Vertical walls between columns
+    //
+    //// Place players on the grid (convert from 18x18 to 9x9: divide by 2, subtract 0.5)
+    //let p0_x = ((game.player_pieces[0].x - 1) / 2) as usize;
+    //let p0_y = ((game.player_pieces[0].y - 1) / 2) as usize;
+    //let p1_x = ((game.player_pieces[1].x - 1) / 2) as usize;
+    //let p1_y = ((game.player_pieces[1].y - 1) / 2) as usize;
+    //
+    //player_grid[p0_y][p0_x] = 'A';
+    //player_grid[p1_y][p1_x] = 'H';
+    //
+    //// Read walls from grid and convert to display format
+    //for y in 0..20 {
+    //    for x in 0..20 {
+    //        if game.grid[y][x] {
+    //            // Wall found at (x, y) in 24x24 grid
+    //            // Convert to 9x9 display coordinates
+    //            let display_x = x / 2;
+    //            let display_y = y / 2;
+    //            
+    //            // Check if horizontal or vertical by looking at neighboring cells
+    //            // Horizontal walls span horizontally (check x+2, x+4)
+    //            // Vertical walls span vertically (check y+2, y+4)
+    //            if x + 2 < 18 && game.grid[y][x + 2] {
+    //                // Horizontal wall
+    //                if display_y < 9 && display_x < 9 {
+    //                    h_wall_grid[display_y][display_x] = true;
+    //                }
+    //            } else if y + 2 < 18 && game.grid[y + 2][x] {
+    //                // Vertical wall
+    //                if display_y < 9 && display_x < 9 {
+    //                    v_wall_grid[display_y][display_x] = true;
+    //                }
+    //            }
+    //        }
+    //    }
+    //}
+    //
+    //// Display the board
+    //println!("\n   0   1   2   3   4   5   6   7   8   9 (wall X coords)");
+    //println!(" 9 +---+---+---+---+---+---+---+---+---+");
+    //
+    //for y in (0..9).rev() {
+    //    // Print player row with vertical walls
+    //    print!("   ");
+    //    for x in 0..9 {
+    //        if v_wall_grid[y][x] {
+    //            print!("X");
+    //        } else {
+    //            print!("|");
+    //        }
+    //        print!(" {} ", player_grid[y][x]);
+    //    }
+    //    println!("|");
+    //    
+    //    // Print horizontal wall row
+    //    if y > 0 {
+    //        print!("{:2} +", y);
+    //        for x in 0..9 {
+    //            if h_wall_grid[y - 1][x] {
+    //                print!("XXX+");
+    //            } else {
+    //                print!("---+");
+    //            }
+    //        }
+    //        println!();
+    //    }
+    //}
+    //println!(" 0 +---+---+---+---+---+---+---+---+---+");
+    //
+    //println!("\nPlayer 0 (A): ({}, {}) - Walls: {}", 
+    //         game.player_pieces[0].x, game.player_pieces[0].y, game.walls_remaining[0]);
+    //println!("Player 1 (H): ({}, {}) - Walls: {}", 
+    //         game.player_pieces[1].x, game.player_pieces[1].y, game.walls_remaining[1]);
+    //println!("Current player: {}", game.active_player);
+    //println!("\nNote: Walls block movement. Place walls at coordinates between player spaces.");
 }
 
 fn get_ai_move(game: &Quorridor) -> Move {
@@ -143,11 +157,19 @@ fn get_ai_move(game: &Quorridor) -> Move {
         UCTPolicy::new(1.414),  // Standard UCT exploration constant
         ApproxTable::new(8192)
     );
-    mcts.playout_n_parallel(1000, 4);
+    mcts.playout_n_parallel(1000, 1);
     
     match mcts.best_move() {
         Some(mov) => {
-            println!("AI chose: {:?}", mov);
+            match &mov {
+                Move::PlaceWall(x, y, o) => {
+                    // Convert back to display coordinates (divide by 2)
+                    println!("AI chose: PlaceWall({}, {}, {:?})", x/2, y/2, o);
+                }
+                _ => {
+                    println!("AI chose: {:?}", mov);
+                }
+            }
             mov
         }
         None => panic!("No moves available for AI!"),
@@ -170,15 +192,19 @@ fn capture_input() -> Option<Move> {
         "r" => Some(Move::Right),
         _ if input.starts_with("w ") => {
             let parts: Vec<&str> = input.split_whitespace().collect();
+            
             if parts.len() == 4 {
                 if let (Ok(x), Ok(y)) = (parts[1].parse::<i64>(), parts[2].parse::<i64>()) {
+
+                    let grid_x = x * 2;
+                    let grid_y = y * 2;
                     let orientation = match parts[3] {
                         "h" => Some(Orientation::Horizontal),
                         "v" => Some(Orientation::Vertical),
                         _ => None,
                     };
                     if let Some(orient) = orientation {
-                        Some(Move::PlaceWall(x, y, orient))
+                        Some(Move::PlaceWall(grid_x, grid_y, orient))
                     } else {
                         None
                     }
@@ -199,13 +225,13 @@ fn get_human_move(game: &Quorridor) -> Move {
     
     let available = game.available_moves();
     
-    println!("\nYour turn! Available moves:");
+    println!("\\nYour turn! Available moves:");
     println!("  u - Up");
     println!("  d - Down");
     println!("  l - Left");
     println!("  r - Right");
-    println!("  w x y h - Place horizontal wall at (x, y)");
-    println!("  w x y v - Place vertical wall at (x, y)");
+    println!("  w x y h - Place horizontal wall at (x, y) where x,y are 0-6");
+    println!("  w x y v - Place vertical wall at (x, y) where x,y are 0-6");
     loop {
         let mov = capture_input();
         
@@ -224,16 +250,12 @@ fn get_human_move(game: &Quorridor) -> Move {
 
 
 fn main() {
-    let mut game = Quorridor {
-        player_pieces: [Piece{x: 4, y: 0}, Piece{x: 4, y: 8}],
-        active_player: 0,
-        walls: [Wall{x: 99, y: 99, orientation: Orientation::Horizontal}; 18],
-        walls_remaining: [9, 9]
-    };
+    let mut game = Quorridor::default();
     
     println!("=== Quorridor ===");
-    println!("Player 0 (A) starts at bottom, needs to reach y=8");
-    println!("Player 1 (H - you) starts at top, needs to reach y=0");
+    println!("Player 0 (A) starts at bottom, needs to reach top (y=8)");
+    println!("Player 1 (H - you) starts at top, needs to reach bottom (y=0)");
+    println!("Wall placement: Use coordinates 0-6 (e.g., 'w 4 3 h' for horizontal wall)");
     
     loop {
         display_board(&game);
@@ -247,7 +269,6 @@ fn main() {
             println!("\n*** You (Player 1) win! ***");
             break;
         }
-        
         let mov = if game.active_player == 0 {
             get_ai_move(&game)
         } else {
