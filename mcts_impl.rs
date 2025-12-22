@@ -34,22 +34,27 @@ impl Evaluator<MyMCTS> for MyEvaluator {
  
     fn evaluate_new_state(&self, state: &Quorridor, moves: &Vec<Move>,
         _: Option<SearchHandle<MyMCTS>>)
-        -> (Vec<()>, i64) {
+        -> (Vec<()>, i64) {   
         // Check for terminal states
-        if state.player_pieces[0].y >= (GRID_HEIGHT - 1) as i64 {
-            return (vec![(); moves.len()], 100000);  // Player 0 wins
+        if state.player_pieces[0].y >= (GRID_HEIGHT - 2) as i64 {
+        return (vec![(); moves.len()], 100000);  // Player 0 wins
         }
         if state.player_pieces[1].y <= 1 {
             return (vec![(); moves.len()], -100000);  // Player 1 wins
         }
         
         // Use actual BFS shortest path distance to goal
-        let p0_distance = shortest_path_to_goal(state, 0).unwrap_or(1000);
-        let p1_distance = shortest_path_to_goal(state, 1).unwrap_or(1000);
+        let p0_distance = shortest_path_to_goal(state, 0);
+        let p1_distance = shortest_path_to_goal(state, 1);
         
-        // Lower distance is better - higher score for player 0 when p1 is farther
-        let score = (p1_distance as i64 - p0_distance as i64) * 1000;
+        let score = match (p0_distance, p1_distance) {
+            (None, _) => -50000,
+            (_, None) => -50000,
+            (Some(d0), Some(d1)) => (d1 as i64 - d0 as i64) * 1000,
+        };
         
+        //let score = - (p0_distance as i64) * 1000;
+        //let score = 0;
         (vec![(); moves.len()], score)
     }
     

@@ -128,55 +128,28 @@ fn display_board(game: &Quorridor) {
 
 fn get_ai_move(game: &Quorridor) -> Move {
     println!("\nAI is thinking...");
+    
+    //mcts_impl::reset_stats();
+    
     let mut mcts = MCTSManager::new(
         game.clone(), 
         mcts_impl::MyMCTS, 
         mcts_impl::MyEvaluator, 
-        UCTPolicy::new(1.414),  // Standard UCT exploration constant
+        UCTPolicy::new(0.5),  // Lower value = more exploitation (picks highest scoring moves)
         ApproxTable::new(8192)
     );
-    mcts.playout_n_parallel(100000, 4);
+    mcts.playout_n_parallel(10000, 4);  // More playouts for better decisions
+   
+    //mcts_impl::print_stats();
     
-    // Print available moves and their evaluations
-    let available = game.available_moves();
-    println!("\nMove evaluations:");
-    for mov in &available {
-        let mut test_game = game.clone();
-        test_game.make_move(mov);
-        
-        let p0_dist = quorridor::shortest_path_to_goal(&test_game, 0).unwrap_or(1000);
-        let p1_dist = quorridor::shortest_path_to_goal(&test_game, 1).unwrap_or(1000);
-        let score = (p1_dist as i64 - p0_dist as i64) * 1000;
-        
-        match mov {
-            Move::Up => println!("  Up: score = {}", score),
-            Move::Down => println!("  Down: score = {}", score),
-            Move::Left => println!("  Left: score = {}", score),
-            Move::Right => println!("  Right: score = {}", score),
-            _ => {}
-        }
-    }
-    
+    println!("\nEvaluation of moves:");
+    mcts.tree().debug_moves();
+
     match mcts.best_move() {
         Some(mov) => {
-            // Calculate score for the chosen move
-            let mut test_game = game.clone();
-            test_game.make_move(&mov);
-            let p0_dist = quorridor::shortest_path_to_goal(&test_game, 0).unwrap_or(1000);
-            let p1_dist = quorridor::shortest_path_to_goal(&test_game, 1).unwrap_or(1000);
-            let chosen_score = (p1_dist as i64 - p0_dist as i64) * 1000;
-            
-            match &mov {
-                Move::PlaceWall(x, y, o) => {
-                    // Convert back to display coordinates (divide by 2)
-                    println!("\nAI chose: PlaceWall({}, {}, {:?}) with score = {}", x/2, y/2, o, chosen_score);
-                }
-                _ => {
-                    println!("\nAI chose: {:?} with score = {}", mov, chosen_score);
-                }
-            }
+            println!("AI chose: {:?}", mov);
             mov
-        }
+        },
         None => panic!("No moves available for AI!"),
     }
 }
@@ -195,6 +168,18 @@ fn capture_input() -> Option<Move> {
         "d" => Some(Move::Down),
         "l" => Some(Move::Left),
         "r" => Some(Move::Right),
+        "uu" => Some(Move::UpJump),
+        "dd" => Some(Move::DownJump),
+        "ll" => Some(Move::LeftJump),
+        "rr" => Some(Move::RightJump),
+        "ul" => Some(Move::UpLeft),
+        "ur" => Some(Move::UpRight),
+        "dl" => Some(Move::DownLeft),
+        "dr" => Some(Move::DownRight),
+        "lu" => Some(Move::LeftUp),
+        "ld" => Some(Move::LeftDown),
+        "ru" => Some(Move::RightUp),
+        "rd" => Some(Move::RightDown),
         _ if input.starts_with("w ") => {
             let parts: Vec<&str> = input.split_whitespace().collect();
             
@@ -266,12 +251,12 @@ fn main() {
         display_board(&game);
         
         // Check for winner
-        if game.player_pieces[0].y == 8 {
-            println!("\n*** AI (Player 0) wins! ***");
-            break;
-        }
-        if game.player_pieces[1].y == 0 {
-            println!("\n*** You (Player 1) win! ***");
+        if game.game_over() {
+            if game.player_pieces[0].y >= (quorridor::GRID_HEIGHT - 2) as i64 {
+                println!("Player 0 (A) wins!");
+            } else {
+                println!("Player 1 (H) wins!");
+            }
             break;
         }
         let mov = if game.active_player == 0 {

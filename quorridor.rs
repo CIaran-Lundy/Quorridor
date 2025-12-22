@@ -116,35 +116,41 @@ impl Quorridor {
         has_path_to_goal(self, 0) && has_path_to_goal(self, 1)
     }
     
-    pub fn wall_blocks_path(&mut self, _x: i64, _y: i64, _orientation: Orientation) -> bool {
-        // TODO: Implement with 18x18 grid
-        false
-        /*
-        let idx = self.active_player;
-        let walls_placed = 9 - self.walls_remaining[idx];
-        let wall_index = if idx == 0 {
-            walls_placed
-        } else {
-            9 + walls_placed
+    pub fn wall_blocks_path(&self, x: i64, y: i64, orientation: Orientation) -> bool {
+        // Temporarily place the wall (modify a copy of the grid)
+        let mut temp_grid = self.grid.clone();
+        let wall = Wall { x, y, orientation };
+        for (px, py) in wall.positions() {
+            temp_grid[py as usize][px as usize] = true;
+        }
+        
+        // Create temporary game state with modified grid
+        let temp_state = Quorridor {
+            player_pieces: self.player_pieces,
+            active_player: self.active_player,
+            grid: temp_grid,
+            walls_remaining: self.walls_remaining,
         };
         
-        let new_wall = Wall { x, y, orientation };
-        let old_wall = self.walls[wall_index];
-        self.walls[wall_index] = new_wall;
+        // Check if both players still have a path to their goals
+        let p0_has_path = has_path_to_goal(&temp_state, 0);
+        let p1_has_path = has_path_to_goal(&temp_state, 1);
         
-        let blocks = !self.both_players_have_path();
-        
-        self.walls[wall_index] = old_wall;
-        blocks
-        */
+        // Wall blocks if either player loses their path
+        !(p0_has_path && p1_has_path)
     }
 
     fn validate_wall_move(&self, x: i64, y: i64, orientation: &Orientation) -> bool {
         if self.walls_remaining[self.active_player] == 0 {
             return false;
         }
-
+        
         let candidate_wall = Wall { x, y, orientation: *orientation };
+        // if absolute difference between wall and pieces is greater than 4, skip
+        //if (x - self.player_pieces[0].x).abs() > 2 && (y - self.player_pieces[0].y).abs() > 2 &&
+        //   (x - self.player_pieces[1].x).abs() > 2 && (y - self.player_pieces[1].y).abs() > 2 {
+        //    return false;
+        //}
         for (_x, _y) in candidate_wall.positions() {
             if _x > GRID_WIDTH as i64 - 1|| _y > GRID_HEIGHT as i64 -1 {
                 return false;
@@ -154,9 +160,9 @@ impl Quorridor {
             }
 
         }
-        if self.clone().wall_blocks_path(x, y, *orientation) {
-            return false;
-        }
+        //if self.wall_blocks_path(x, y, *orientation) {
+        //    return false;
+        //}
         true
     }
 
@@ -177,7 +183,7 @@ impl Quorridor {
     }
 
     pub fn game_over(&self) -> bool {
-        self.player_pieces[0].y >= (GRID_HEIGHT - 1) as i64 || self.player_pieces[1].y <= 1
+        self.player_pieces[0].y >= (GRID_HEIGHT - 2) as i64 || self.player_pieces[1].y <= 1
     }
 }
 
@@ -215,14 +221,10 @@ pub fn shortest_path_to_goal(game: &Quorridor, player_idx: usize) -> Option<usiz
         }
         
         // Move by 2 in grid (odd position to odd position)
-        let moves = [
-            (x + 2, y),
-            (x - 2, y),
-            (x, y + 2),
-            (x, y - 2),
-        ];
-        
-        for (nx, ny) in moves {
+        for (dx, dy) in [(2, 0), (-2, 0), (0, 2), (0, -2)] {
+            let nx = x + dx;
+            let ny = y + dy;
+            
             // Stay within odd positions (1 to GRID_HEIGHT-1)
             if nx < 1 || nx > (GRID_WIDTH - 2) as i64 || ny < 1 || ny > (GRID_HEIGHT - 2) as i64 {
                 continue;
@@ -232,11 +234,10 @@ pub fn shortest_path_to_goal(game: &Quorridor, player_idx: usize) -> Option<usiz
                 continue;
             }
             
-            if game.wall_collision(nx, ny) {
-                continue;
-            }
-            
-            if game.player_collision(player_idx, nx, ny) {
+            // Check wall between current and next position (midpoint)
+            let wall_x = (x + nx) / 2;
+            let wall_y = (y + ny) / 2;
+            if game.wall_collision(wall_x, wall_y) {
                 continue;
             }
             
@@ -253,7 +254,7 @@ pub fn has_path_to_goal(game: &Quorridor, player_idx: usize) -> bool {
     use std::collections::HashSet;
     
     let start = game.player_pieces[player_idx];
-    let goal_y = if player_idx == 0 { (GRID_HEIGHT - 1) as i64 } else { 1 };
+    let goal_y = if player_idx == 0 { (GRID_HEIGHT - 2) as i64 } else { 1 };
     
     let mut visited = HashSet::new();
     let mut stack = Vec::new();
@@ -267,14 +268,10 @@ pub fn has_path_to_goal(game: &Quorridor, player_idx: usize) -> bool {
         }
         
         // Move by 2 in grid (odd position to odd position)
-        let moves = [
-            (x + 2, y),
-            (x - 2, y),
-            (x, y + 2),
-            (x, y - 2),
-        ];
-        
-        for (nx, ny) in moves {
+        for (dx, dy) in [(2, 0), (-2, 0), (0, 2), (0, -2)] {
+            let nx = x + dx;
+            let ny = y + dy;
+            
             // Stay within odd positions (1 to GRID_HEIGHT-1)
             if nx < 1 || nx > (GRID_WIDTH - 2) as i64 || ny < 1 || ny > (GRID_HEIGHT - 2) as i64 {
                 continue;
@@ -284,11 +281,10 @@ pub fn has_path_to_goal(game: &Quorridor, player_idx: usize) -> bool {
                 continue;
             }
             
-            if game.wall_collision(nx, ny) {
-                continue;
-            }
-            
-            if game.player_collision(player_idx, nx, ny) {
+            // Check wall between current and next position (midpoint)
+            let wall_x = (x + nx) / 2;
+            let wall_y = (y + ny) / 2;
+            if game.wall_collision(wall_x, wall_y) {
                 continue;
             }
             
