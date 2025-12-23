@@ -4,89 +4,10 @@ use mcts::transposition_table::*;
 
 use itertools::iproduct;
 use std::io::{self, Write};
+use std::sync::{Arc, Mutex};
 
-mod piece;
-mod wall;
-mod quorridor;
-mod tests;
-mod mcts_impl;
-
-use piece::Piece;
-use wall::{Wall, Orientation, WallPlacementResult, place_wall};
-use quorridor::{Quorridor, move_player};
+use quorridor::{Quorridor, Move, Piece, Wall, mcts_impl::MyEvaluator, move_player, place_wall, Orientation, WallPlacementResult, GRID_HEIGHT, policy_network::PolicyNetwork};
  
-#[derive(Clone, Debug, PartialEq)]
-pub enum Move {
-    Up,
-    Down,
-    Left,
-    Right,
-    UpJump,
-    DownJump,
-    LeftJump,
-    RightJump,
-    UpLeft,
-    UpRight,
-    DownLeft,
-    DownRight,
-    LeftUp,
-    LeftDown,
-    RightUp,
-    RightDown,
-    PlaceWall(i64, i64, Orientation),
-}
-
- 
-impl GameState for Quorridor {
-    type Move = Move;
-    type Player = usize;
-    type MoveList = Vec<Move>;
-
-    fn current_player(&self) -> Self::Player {
-        self.active_player
-    }
-
-    fn available_moves(&self) -> Vec<Move> {
-        if self.game_over() {
-            vec![]
-        } else {
-            let mut moves = self.get_movement_moves();
-            moves.extend(self.get_special_moves());
-            moves.extend(self.get_wall_moves());
-            moves
-        }
-    }
-
-    fn make_move(&mut self, mov: &Self::Move) {
-        let success = match mov {
-            Move::Up => { move_player(self, 0, -2); true }      // Move by 2 in 18x18 grid
-            Move::Down => { move_player(self, 0, 2); true }    // Move by 2 in 18x18 grid
-            Move::Left => { move_player(self, -2, 0); true }    // Move by 2 in 18x18 grid
-            Move::Right => { move_player(self, 2, 0); true }    // Move by 2 in 18x18 grid
-            Move::UpJump => { move_player(self, 0, -4); true }
-            Move::DownJump => { move_player(self, 0, 4); true }
-            Move::LeftJump => { move_player(self, -4, 0); true }
-            Move::RightJump => { move_player(self, 4, 0); true }
-            Move::UpLeft => { move_player(self, -2, 2); true }
-            Move::UpRight => { move_player(self, -2, 2); true }
-            Move::DownLeft => { move_player(self, 2, -2); true }
-            Move::DownRight => { move_player(self, 2, -2); true }
-            Move::LeftUp => { move_player(self, -2, 2); true }
-            Move::LeftDown => { move_player(self, 2, -2); true }
-            Move::RightUp => { move_player(self, -2, 2); true }
-            Move::RightDown => { move_player(self, 2, -2); true }
-            Move::PlaceWall(x, y, orientation) => {
-                place_wall(self, *x, *y, *orientation) == WallPlacementResult::Success
-            }
-        };
-        
-        if success {
-            self.active_player = 1 - self.active_player;
-        }
-    }
-}
-
-
 fn display_board(game: &Quorridor) {
     let mut board = [
         ["+", "---", "+", "---", "+", "---", "+", "---", "+", "---", "+", "---", "+", "---", "+", "---", "+", "---", "+", "  0"],
@@ -126,21 +47,24 @@ fn display_board(game: &Quorridor) {
     }        //return false;
 }
 
-fn get_ai_move(game: &Quorridor) -> Move {
+fn get_ai_move(game: &Quorridor, evaluator: &MyEvaluator, use_parallel: bool) -> Move {
     println!("\nAI is thinking...");
-    
-    //mcts_impl::reset_stats();
     
     let mut mcts = MCTSManager::new(
         game.clone(), 
-        mcts_impl::MyMCTS, 
-        mcts_impl::MyEvaluator, 
+        quorridor::mcts_impl::MyMCTS, 
+        evaluator.clone(),
         UCTPolicy::new(0.5),  // Lower value = more exploitation (picks highest scoring moves)
         ApproxTable::new(8192)
     );
-    mcts.playout_n_parallel(10000, 4);  // More playouts for better decisions
+    
+    if use_parallel {
+        mcts.playout_n_parallel(10000, 4);  // Parallel mode (heuristic only)
+    } else {
+        mcts.playout_n(10000);  // Single-threaded (for network evaluation)
+    }
    
-    //mcts_impl::print_stats();
+    //quorridor::mcts_impl::print_stats();
     
     println!("\nEvaluation of moves:");
     mcts.tree().debug_moves();
@@ -240,19 +164,47 @@ fn get_human_move(game: &Quorridor) -> Move {
 
 
 fn main() {
+    let args: Vec<String> = std::env::args().collect();
+    let use_network = args.contains(&"--network".to_string());
+    
+    // Load network if requested
+    let (evaluator, use_parallel) = if use_network {
+        println!("Loading trained network from model.pt...");
+        let mut network = PolicyNetwork::new();
+        match network.vs_mut().load("model.pt") {
+            Ok(_) => {
+                println!("Network loaded successfully!\n");
+                (MyEvaluator::with_network(Arc::new(Mutex::new(network))), false)
+            }
+            Err(e) => {
+                println!("Failed to load model.pt: {}\n", e);
+                println!("Falling back to heuristic evaluation.\n");
+                (MyEvaluator::new(), true)
+            }
+        }
+    } else {
+        (MyEvaluator::new(), true)
+    };
+    
     let mut game = Quorridor::default();
     
     println!("=== Quorridor ===");
     println!("Player 0 (A) starts at bottom, needs to reach top (y=8)");
     println!("Player 1 (H - you) starts at top, needs to reach bottom (y=0)");
     println!("Wall placement: Use coordinates 0-6 (e.g., 'w 4 3 h' for horizontal wall)");
+    if use_network {
+        println!("AI Mode: Trained Neural Network (single-threaded MCTS)");
+    } else {
+        println!("AI Mode: Path Distance Heuristic (parallel MCTS)");
+    }
+    println!();
     
     loop {
         display_board(&game);
         
         // Check for winner
         if game.game_over() {
-            if game.player_pieces[0].y >= (quorridor::GRID_HEIGHT - 2) as i64 {
+            if game.player_pieces[0].y >= (GRID_HEIGHT - 2) as i64 {
                 println!("Player 0 (A) wins!");
             } else {
                 println!("Player 1 (H) wins!");
@@ -260,7 +212,7 @@ fn main() {
             break;
         }
         let mov = if game.active_player == 0 {
-            get_ai_move(&game)
+            get_ai_move(&game, &evaluator, use_parallel)
         } else {
             get_human_move(&game)
         };

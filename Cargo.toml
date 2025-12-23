@@ -3,13 +3,32 @@ name = "quorridor"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+name = "quorridor"
+path = "lib.rs"
+
 [dependencies]
 mcts = { git = "https://github.com/zxqfl/mcts.git" }
 itertools = "0.10.1"
+tch = { version = "0.16", features = ["download-libtorch"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 
 [[bin]]
 name = "quorridor"
 path = "main.rs"
+
+[[bin]]
+name = "train_network"
+path = "train_network.rs"
+
+[[bin]]
+name = "selfplay"
+path = "selfplay.rs"
+
+[[bin]]
+name = "train"
+path = "train.rs"
 
 [profile.release]
 debug = true

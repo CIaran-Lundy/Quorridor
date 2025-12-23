@@ -1,9 +1,11 @@
 use mcts::*;
 use mcts::tree_policy::*;
 use mcts::transposition_table::*;
+use std::sync::{Arc, Mutex};
 
 use crate::quorridor::{Quorridor, shortest_path_to_goal, GRID_WIDTH, GRID_HEIGHT};
-use crate::Move;
+use crate::moves::Move;
+use crate::policy_network::PolicyNetwork;
 
 impl TranspositionHash for Quorridor {
     fn hash(&self) -> u64 {
@@ -27,7 +29,20 @@ impl TranspositionHash for Quorridor {
     }
 }
  
-pub struct MyEvaluator;
+#[derive(Clone)]
+pub struct MyEvaluator {
+    network: Option<Arc<Mutex<PolicyNetwork>>>,
+}
+
+impl MyEvaluator {
+    pub fn new() -> Self {
+        MyEvaluator { network: None }
+    }
+    
+    pub fn with_network(network: Arc<Mutex<PolicyNetwork>>) -> Self {
+        MyEvaluator { network: Some(network) }
+    }
+}
  
 impl Evaluator<MyMCTS> for MyEvaluator {
     type StateEvaluation = i64;
@@ -43,18 +58,24 @@ impl Evaluator<MyMCTS> for MyEvaluator {
             return (vec![(); moves.len()], -100000);  // Player 1 wins
         }
         
-        // Use actual BFS shortest path distance to goal
-        let p0_distance = shortest_path_to_goal(state, 0);
-        let p1_distance = shortest_path_to_goal(state, 1);
-        
-        let score = match (p0_distance, p1_distance) {
-            (None, _) => -50000,
-            (_, None) => -50000,
-            (Some(d0), Some(d1)) => (d1 as i64 - d0 as i64) * 1000,
+        // Use network evaluation if available, otherwise fall back to heuristic
+        let score = if let Some(network) = &self.network {
+            let net = network.lock().unwrap();
+            let value = net.evaluate(state);
+            (value * 10000.0) as i64  // Scale to match heuristic range
+        } else {
+            // Use actual BFS shortest path distance to goal
+            let p0_distance = shortest_path_to_goal(state, 0);
+            let p1_distance = shortest_path_to_goal(state, 1);
+            
+            // Use path distance heuristic
+            match (p0_distance, p1_distance) {
+                (None, _) => -500000000,
+                (_, None) => -500000000,
+                (Some(d0), Some(d1)) => (d1 as i64 - d0 as i64) * 1000,
+            }
         };
         
-        //let score = - (p0_distance as i64) * 1000;
-        //let score = 0;
         (vec![(); moves.len()], score)
     }
     

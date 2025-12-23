@@ -1,9 +1,11 @@
 use crate::piece::Piece;
 use crate::wall::{Wall, Orientation};
 use itertools::iproduct;
+use mcts::GameState;
 
 pub use crate::piece::move_player;
 pub use crate::wall::place_wall;
+pub use crate::wall::WallPlacementResult;
 
 // Grid size constants
 pub const GRID_WIDTH: usize = 19;
@@ -21,10 +23,62 @@ pub struct Quorridor {
     pub walls_remaining: [usize; 2],
 }
 
+impl GameState for Quorridor {
+    type Move = crate::Move;
+    type Player = usize;
+    type MoveList = Vec<crate::Move>;
+
+    fn current_player(&self) -> Self::Player {
+        self.active_player
+    }
+
+    fn available_moves(&self) -> Vec<crate::Move> {
+        if self.game_over() {
+            vec![]
+        } else {
+            let mut moves = self.get_movement_moves();
+            moves.extend(self.get_special_moves());
+            moves.extend(self.get_wall_moves());
+            moves
+        }
+    }
+
+    fn make_move(&mut self, mov: &Self::Move) {
+        let success = match mov {
+            crate::Move::Up => { move_player(self, 0, -2); true }
+            crate::Move::Down => { move_player(self, 0, 2); true }
+            crate::Move::Left => { move_player(self, -2, 0); true }
+            crate::Move::Right => { move_player(self, 2, 0); true }
+            crate::Move::UpJump => { move_player(self, 0, -4); true }
+            crate::Move::DownJump => { move_player(self, 0, 4); true }
+            crate::Move::LeftJump => { move_player(self, -4, 0); true }
+            crate::Move::RightJump => { move_player(self, 4, 0); true }
+            crate::Move::UpLeft => { move_player(self, -2, -2); true }
+            crate::Move::UpRight => { move_player(self, 2, -2); true }
+            crate::Move::DownLeft => { move_player(self, -2, 2); true }
+            crate::Move::DownRight => { move_player(self, 2, 2); true }
+            crate::Move::LeftUp => { move_player(self, -2, -2); true }
+            crate::Move::LeftDown => { move_player(self, -2, 2); true }
+            crate::Move::RightUp => { move_player(self, 2, -2); true }
+            crate::Move::RightDown => { move_player(self, 2, 2); true }
+            crate::Move::PlaceWall(x, y, orientation) => {
+                place_wall(self, *x, *y, *orientation) == WallPlacementResult::Success
+            }
+        };
+        
+        if success {
+            self.active_player = 1 - self.active_player;
+        }
+    }
+}
+
 
 impl Quorridor {
 
     pub fn wall_collision(&self, _target_x: i64, _target_y: i64) -> bool {
+        if _target_x < 0 || _target_x >= GRID_WIDTH as i64 || _target_y < 0 || _target_y >= GRID_HEIGHT as i64 {
+            return true;
+        }
         self.grid[_target_y as usize][_target_x as usize]
     }
 
@@ -237,6 +291,9 @@ pub fn shortest_path_to_goal(game: &Quorridor, player_idx: usize) -> Option<usiz
             // Check wall between current and next position (midpoint)
             let wall_x = (x + nx) / 2;
             let wall_y = (y + ny) / 2;
+            if wall_x < 0 || wall_x >= GRID_WIDTH as i64 - 1|| wall_y < 0 || wall_y >= GRID_HEIGHT as i64 -1 {
+                continue;
+            }
             if game.wall_collision(wall_x, wall_y) {
                 continue;
             }

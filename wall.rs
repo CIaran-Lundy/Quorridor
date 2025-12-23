@@ -38,6 +38,11 @@ impl Wall {
 pub fn place_wall(game: &mut Quorridor, x: i64, y: i64, orientation: Orientation) -> WallPlacementResult {
     let idx = game.active_player;
 
+    // Check if player has walls remaining
+    if game.walls_remaining[idx] == 0 {
+        return WallPlacementResult::NoWallsRemaining;
+    }
+
     let wall = Wall { x, y, orientation };
     // Place the wall
     for (px, py) in wall.positions() {
